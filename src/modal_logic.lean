@@ -4,120 +4,67 @@ Author: Huub Vromen
 -/
 
 import data.finset.basic  
-import data.list.basic
-import order.bounded_lattice
 
-/- Modal propositional logic -/
+-- # Modal propositional logic 
 
-/- First, we define some properties of relations that we will need later on -/
+/- First, we define some not previously defined properties of relations that we will use later on -/
 
 variable {α : Type} 
 
---def reflexive (r: α → α → Prop) : Prop := ∀a, r a a 
---def symmetric (r: α → α → Prop) : Prop := ∀a b , r a b → r b a 
---def transitive (r: α → α → Prop) : Prop := ∀a b c , r a b → r b c → r a c
 def euclidean (r: α → α → Prop) : Prop := ∀a b c, r a b → r a c → r b c
 def serial (r: α → α → Prop) : Prop := ∀a, ∃b, r a b 
-def confluence (r: α → α → Prop) : Prop := ∀a b c, r a b ∧ r a c → ∃d, r b d ∧ r c d
+def confluence (r: α → α → Prop) : Prop:= ∀a b c, r a b ∧ r a c → ∃d, r b d ∧ r c d
 
--- see Pacuit p.12 for more
+-- see Pacuit (2017, p.12) for more properties of relations
 
-/- We start by defining a frame: a type of "possible worlds" with a relation on this type. -/
+/-- We start by defining a frame: a type of "possible worlds" with an accessibility  relation on this type. -/
+structure frame := (wo : Type) [h : inhabited wo] (r : wo → wo → Prop)   
+variable {f : frame}
 
-variable {wo : Type}                         -- type of worlds            
---variable [has_zero wo]                
-
-variable r : wo → wo → Prop
-
-/- we will study functions `wo → Prop` (modal propositions)
-   we define `implication` and `negation` and `validity` for modal propositions 
-   and `normality` for functions from modal propositions to modal propositions -/
-
-def imp (φ ψ : wo → Prop): wo → Prop := λw, φ w → ψ w
+/-- we define `implication`, `conjunction`, `negation` and `validity` for modal 
+propositions (that is, functions `wo → Prop`) -/
+def imp (φ ψ : f.wo → Prop): f.wo → Prop := λw, φ w → ψ w
 infixr ` →ₘ ` : 90 := imp
 
-def neg (φ : wo → Prop) : wo → Prop := λw, ¬ φ w
+def neg (φ : f.wo → Prop) : f.wo → Prop := λw, ¬ φ w
 notation ` ¬ₘ ` := neg
 
-def conj (φ ψ : wo → Prop): wo → Prop := λw, φ w ∧ ψ w
+def conj (φ ψ : f.wo → Prop): f.wo → Prop := λw, φ w ∧ ψ w
 infixr ` ∧ₘ ` : 90 := conj
 
-def disj (φ ψ : wo → Prop): wo → Prop := λw, φ w ∨ ψ w
-infixr ` ∨ₘ ` : 90 := disj
+def valid (φ : f.wo → Prop) : Prop := ∀w, φ w
+notation `⊢ ` φ := valid φ                             
 
-def valid (φ : wo → Prop) : Prop := ∀w, φ w
-notation `⊢ ` φ := valid φ                                   
-
-#check ⊢ (λx : wo, false)
-
-/- we define two functions from modal propositions to modal propositions -/
-
-def box (φ : wo → Prop) : wo → Prop := 
-λw, ∀v, r w v → φ v                       
-
-#check @box
-
-def diamond (φ : wo → Prop) : wo → Prop := 
-λw, ∃v, r w v ∧ φ v                       
-            
---variable {r}
---local notation `□ᵣ` := @box _ r
---local notation `◇ᵣ` := @diamond _ r
---variable (r)  
-
+/-- we define two functions from modal propositions to modal propositions -/
+def box (φ : f.wo → Prop) : f.wo → Prop := λw, ∀v, f.r w v → φ v                       
 notation `□` := box
-notation `◇` := diamond
+
+def diamond (φ : f.wo → Prop) : f.wo → Prop := λw, ∃v, f.r w v ∧ φ v                       
+notation `⬦` := diamond
 
 
-/- we define some propositions, the second one is called B after Brouwer -/
-def T : Prop := 
-∀φ, ⊢ □r φ →ₘ φ
+/--  `box` and `diamond` are interdefinable -/
 
-#check @T
+lemma neg_neg₁ {φ : f.wo → Prop} :  
+    ¬ₘ (¬ₘ φ) = φ := by repeat {rw neg}; simp *
 
-def B : Prop := ∀φ w, ◇r (□r φ) w → φ w        
-#check @B
+lemma not_box_diamond_not {φ : f.wo → Prop} : 
+    ¬ₘ (□ φ) = ⬦ (¬ₘ φ) := by simp [box, diamond, neg]
 
-def D : Prop := ∀φ w, □r φ w → ◇r φ w
+lemma not_diamond_box_not {φ : f.wo → Prop} : 
+    ¬ₘ (⬦ φ) = □ (¬ₘ φ) := by simp [box, diamond, neg]
 
-def IV : Prop := ∀φ w, □r φ w → □r (□r φ) w
+lemma box_from_diamond {φ : f.wo → Prop} : 
+    □ φ = ¬ₘ (⬦ (¬ₘ φ)) := by simp [not_diamond_box_not]; rw [neg_neg₁]
 
-/- V is equivalent to negative introspection (¬ □ ⟶ □ ¬ □   -/
-def V : Prop  := ∀φ w, ◇ r φ w → □r (◇r φ) w
-
-def BDDB : Prop := ∀φ w, ◇r (□r φ) w → □r (◇r φ) w
+lemma diamond_from_box {φ : f.wo → Prop} : 
+    ⬦ φ = ¬ₘ (□ (¬ₘ φ)) := by simp [not_box_diamond_not]; rw neg_neg₁
 
 
-/- interdefinability of □ and ◇ -/
+/- `box` obeys the 'normal' modal axioms K and Nec, and some other axioms -/
 
-lemma neg_neg₁ {φ : wo → Prop} :  ¬ₘ (¬ₘ φ) = φ :=
-by repeat {rw neg}; simp *
-
-lemma not_box_diamond_not {φ : wo → Prop} : 
-    ¬ₘ (□r φ) = ◇r (¬ₘ φ) := by simp [box, diamond, neg]
-
-lemma not_diamond_box_not {φ : wo → Prop} : 
-    ¬ₘ (◇r φ) = □r (¬ₘ φ) := by simp [box, diamond, neg]
-
-lemma box_from_diamond {φ : wo → Prop} : 
-    □r φ = ¬ₘ (◇r (¬ₘ φ)) :=
-begin
-simp [not_diamond_box_not],
-rw [neg_neg₁]
-end
-
-lemma dimaond_from_box {φ : wo → Prop} : 
-    ∀w, ◇r φ w = ¬ₘ (□r (¬ₘ φ)) w :=
-begin
-intro w,
-simp [not_box_diamond_not],
-rw neg_neg₁ 
-end
-
-/- `box` obeys the so-called normal modal axioms K and Nec -/
-
-lemma K {φ ψ: wo → Prop} : 
-    ⊢ □r (φ →ₘ ψ) →ₘ □r φ →ₘ □r ψ :=
+lemma K {φ ψ: f.wo → Prop} : 
+    ⊢ □ (φ →ₘ ψ) →ₘ □ φ →ₘ □ ψ :=
 begin
 intros w h1 h2 v hr,
 have h3 : (φ →ₘ ψ) v := by exact h1 v hr,
@@ -126,21 +73,18 @@ exact h3 h4
 end
 
 
-lemma Nec {φ : wo → Prop} : 
-    (⊢ φ) → ⊢ □r φ := 
+lemma Nec {φ : f.wo → Prop} : 
+    (⊢ φ) → (⊢ □ φ) := 
 begin
 intros h1 w v h2,
 exact h1 v    
 end
 
 
-lemma C₁ {φ ψ : wo → Prop} :
-    ⊢ □r (φ ∧ₘ ψ) →ₘ (□r φ ∧ₘ □r ψ) :=
+lemma M {φ ψ : f.wo → Prop} :
+    ⊢ □ (φ ∧ₘ ψ) →ₘ (□ φ ∧ₘ □ ψ) :=
 begin
 intros w h1,
---rw conj,
---rw box at *,
---simp *,
 split,
 {   intros v hv,
     have h2 : (φ ∧ₘ ψ) v, from h1 v hv,
@@ -153,8 +97,8 @@ split,
 end
 
 
-lemma C₂ {φ ψ : wo → Prop} :
-    ⊢ (□r φ ∧ₘ □r ψ) →ₘ □r (φ ∧ₘ ψ) :=
+lemma C {φ ψ : f.wo → Prop} :
+    ⊢ (□ φ ∧ₘ □ ψ) →ₘ □ (φ ∧ₘ ψ) :=
 begin
 intros w h1,
 rw conj at h1,
@@ -166,10 +110,31 @@ exact and.intro (h1.1 v hr) (h1.2 v hr)
 end
  
 
-/- relations betwen the validity of formulas and properties of frames,
-   equivalence lemma's (Sahlquist formulas) -/
+/- Correspondence results: some properties of frames correspond to formulas that are 
+   valid in such frames. First, we define some properties of frames. -/
 
-lemma T_eq_refl : (reflexive r) ↔ T r:=
+/-- truth -/
+def T (f : frame) : Prop := ∀φ : f.wo → Prop, ⊢ □ φ →ₘ φ            
+
+/-- named after Brouwer -/
+def B (f : frame) : Prop := ∀φ : f.wo → Prop, ⊢ ⬦ (□ φ) →ₘ φ              
+
+/-- consistency -/
+def D (f : frame) : Prop := ∀φ : f.wo → Prop, ⊢ □ φ →ₘ ⬦ φ    
+
+/-- positive introspection -/
+def IV (f : frame) : Prop := ∀φ : f.wo → Prop, ⊢ □ φ →ₘ □ (□ φ)      
+
+/-- V is equivalent to negative introspection (¬ □ →ₘ □ ¬ □) -/
+def V (f : frame) : Prop  := ∀φ : f.wo → Prop, ⊢ ⬦ φ →ₘ □ (⬦ φ)
+
+/-- exchangebility of the order of `box` and `diamond` -/
+def BDDB (f : frame) : Prop := ∀φ : f.wo → Prop, ⊢ ⬦ (□ φ) →ₘ □ (⬦ φ)     
+
+
+-- Now, we prove correspondence results for these properties.
+
+lemma T_eq_refl : (reflexive f.r) ↔ T f:=
 begin
 apply iff.intro,
 {   intro hr,
@@ -183,19 +148,16 @@ apply iff.intro,
     rw reflexive,
     simp [T, imp] at hT,
     intro w₀,
-    let φ : wo → Prop := (λw, w ≠ w₀),
+    let φ : f.wo → Prop := (λw, w ≠ w₀),
     apply by_contradiction,
     intro hn,
-    have h2 : box r φ w₀ := by finish,
+    have h2 : □ φ w₀ := by finish,
     have h3 : φ w₀ := by exact hT φ w₀ h2,
     finish }
 end
 
-#check @T_eq_refl 
-#check @reflexive
-#check @T
 
-lemma IV_eq_trans : transitive r ↔ IV r:=
+lemma IV_eq_trans : transitive f.r ↔ IV f:=
 begin
 split,
 {   intro hr,
@@ -205,24 +167,26 @@ split,
     intros v hv,
     --rw box,
     intros u h2,
-    --rw transitive at hr,
-    have h3 : r w u := by exact hr _ _ _ hv h2,
+    rw transitive at hr,
+    have h3 : f.r w u, by exact hr hv h2,
     exact h1 _ h3  },
 {   intro hIV,
     --rw transitive,
     intros a b c hab hbc,
     rw IV at hIV,
-    let φ : wo → Prop := (λw, r a w ),
-    have h2 : box r φ a := by finish,
-    have h3 : box r (box r φ) a := by exact hIV φ a h2,
+    let φ : f.wo → Prop := (λw, f.r a w ),
+    have h2 : □ φ a := by finish,
+    have h3 : □ (□ φ) a := by exact hIV φ a h2,
     have h4 : φ b := by finish,
     --rw box at h3,
-    have h5 : box r φ b := by exact h3 b hab,
+    have h5 : □ φ b := by exact h3 b hab,
     have h6 : φ c := by exact h5 c hbc,
     finish  }
 end
 
-lemma B_eq_symm : symmetric r ↔ B r:=             --Gamut p. 301
+
+lemma B_eq_symm : symmetric f.r ↔ B f:=          
+-- this proof follows Gamut (1991, p. 301)
 begin
 split,
 {   intro hs,
@@ -231,22 +195,24 @@ split,
     rw diamond at h1,
     cases h1 with v h2,
     rw symmetric at hs,
-    have h3 : r v w := by exact hs w v (h2.1),
+    have h3 : f.r v w := by exact hs h2.1,
     exact h2.2 w h3},
 {   intros hB,
     rw symmetric,
     intros a b hab,
-    let φ := (λw, r b w),
-    have h1 : box r φ b := by tidy,
-    have h2 : diamond r (box r φ) a := by tidy,
+    let φ := (λw, f.r b w),
+    have h1 : □ φ b := by tidy,
+    have h2 : ⬦ (□ φ) a := by tidy,
     rw B at hB,
     have h3 : φ a := by exact hB φ a h2,
     finish  }
 end
 
-lemma V_eq_euclidean : euclidean r ↔ V r:=        
-begin                                                                   --Uckelmann p.176
-split,                                                                  --OLP
+
+lemma V_eq_euclidean : euclidean f.r ↔ V f:=        
+-- this proof follows Uckelman (2021, p. 176-177)
+begin                                                                 
+split,                                                                  
 {   intros hE φ w hn,
     rw box,
     intros v hv,
@@ -255,31 +221,30 @@ split,                                                                  --OLP
     cases hn with u hu,
     apply exists.intro u,
     apply and.intro (hE w v u hv (and.elim_left hu)) (and.elim_right hu)    },
-{   --haveI := classical.prop_decidable,
-    intros hV w u v hwu hwv,
+{   intros hV w u v hwu hwv,
     by_contra hne,
-    let φ := (λz, ¬ r u z),
+    let φ := (λz, ¬ f.r u z),
     have h1 : φ v := by tidy,
-    have h2 : diamond r φ w := 
+    have h2 : ⬦ φ w := 
         begin
         simp [diamond],
         apply exists.intro v,
         apply and.intro hwv h1
         end,
-    have h3 : ¬ diamond r φ u := by tidy,
-    have h4 : ¬ (box r (diamond r φ) w) := by tidy,
+    have h3 : ¬ ⬦ φ u := by tidy,
+    have h4 : ¬ (□ (⬦ φ) w) := by tidy,
     rw V at hV,
-    have h5 : box r (diamond r φ) w := by exact hV _ _ h2,
+    have h5 : □ (⬦ φ) w := by exact hV _ _ h2,
     show false, from h4 h5    }
 end
 
 
-lemma D_eq_serial : serial r ↔ D r:=
+lemma D_eq_serial : serial f.r ↔ D f:=
 begin
 split,
 {   intros hS φ w hB,
     --rw serial at hS,
-    have h1 : ∃b, r w b := by exact hS w,
+    have h1 : ∃b, f.r w b := by exact hS w,
     --rw diamond,
     cases h1 with b hb,
     --rw box at hB,
@@ -291,14 +256,15 @@ split,
     intro a,
     --rw D at hD,
     let φ := (λw, true),
-    have h1 : box r φ a := by finish,
-    have h2 : diamond r φ a := by exact hD φ a h1,
+    have h1 : □ φ a := by finish,
+    have h2 : ⬦ φ a := by exact hD φ a h1,
     -- rw diamond at h2,
     cases h2 with u h3,
     apply exists.intro u (and.elim_left h3)   }
 end
 
-lemma BDDB_eq_confluence : confluence r ↔ BDDB r:=
+
+lemma BDDB_eq_confluence : confluence f.r ↔ BDDB f:=
 begin
 rw confluence at *,
 split,
@@ -315,140 +281,17 @@ split,
     apply and.intro (and.elim_left h2) h3   },
 {   intros hb a b c habc,
     rw BDDB at hb,
-    let φ := (λw, r b w),
-    have h1 : box r φ b := by tidy,
-    have h2 : diamond r (box r φ) a := by tidy,
-    have h3 : box r (diamond r φ) a := by exact hb _ _ h2,
+    let φ := (λw, f.r b w),
+    have h1 : □ φ b := by tidy,
+    have h2 : ⬦ (□ φ) a := by tidy,
+    have h3 : □ (⬦ φ) a := by exact hb _ _ h2,
     --rw box at h3,
-    have h4 : diamond r φ c := by exact h3 c (and.elim_right habc),
+    have h4 : ⬦ φ c := by exact h3 c (and.elim_right habc),
     --rw diamond at h4,
     cases h4 with d h4a,
-    have h5 : r b d := by tidy,
+    have h5 : f.r b d := by tidy,
     apply exists.intro d (and.intro h5 (and.elim_left h4a))    }
 end
 
--- ***** see Garson p.112 for more *** ********************
+-- see Garson (2013, p.112) for more correspondence results
 
-/- Multi-agent propositional modal logic-/
-open classical
-variable {indiv : Type}                      -- type of individuals
-variable rᵢ : indiv → wo → wo → Prop
-variables v w : wo
-variables φ ψ γ : wo → Prop
-variables i j : indiv                            
-
-def boxi (i : indiv) (φ : wo → Prop) : wo → Prop := 
-    λw, ∀v, rᵢ i w v → φ v                       
-
-def diamondi (i : indiv) (φ : wo → Prop) : wo → Prop := 
-    λw, ∃v, rᵢ i w v ∧ φ v                       
-   
-def R (i : indiv) (φ : wo → Prop) : wo → Prop := 
-    λw, ∀v, rᵢ i w v → φ v
-
-def Rg : wo → Prop :=
-λw, ∀i, R rᵢ i φ w
-
-#check @R
-#check @Rg
-
-def connected : wo → wo → Prop := λw v, ∃i, rᵢ i w v
-#check @connected
-
-inductive trcl (rᵢ : indiv → wo → wo → Prop) : wo → wo → Prop
-| base (w v : wo )    : connected rᵢ w v → trcl w v
-| trans (w v u : wo ) : trcl w v → connected rᵢ v u → trcl w u
-
-/-
-inductive reachable (rr : wo → wo → Prop) : ℕ → wo → wo → Prop
-| zero (w v : wo)               : reachable 0 w w
-| succ (n : ℕ) (w v u : wo)     : reachable n w u → rr u v → reachable (n+1) w v
--/
-
-#check @trcl
-
-def CRg (φ : wo → Prop) : wo → Prop :=
-    λw, (∀v, trcl rᵢ w v → φ v)
-#check @CRg
-
-
-lemma B10 : ∀w, (CRg rᵢ φ w) ↔ (Rg rᵢ (φ ∧ₘ CRg rᵢ φ)) w :=
-begin
-intro w,
-split,
-{   intro h1,
-    rw CRg at h1,
-    rw Rg,
-    intro i,
-    --simp [conj],
-    rw R,
-    intros v hv,
-    simp [conj],
-    have h2 : connected rᵢ w v, by apply exists.intro i; assumption,
-    have h3 : trcl rᵢ w v :=
-        begin
-        sorry,
-        end,
-    
-    sorry   },
-{   intros h2,
-    --rw conj at h2,
-    --rw CRg,
-    intros v hv,
-    --rw Rg at h2,
-    have h3 : Rg rᵢ (CRg rᵢ φ) w :=
-    begin
-        intros i v hv,
-        rw Rg at h2,
-        have h3 : R rᵢ i (φ ∧ₘ CRg rᵢ φ) w, from h2 i,
-        have h4 : (φ ∧ₘ CRg rᵢ φ) v, from h3 v hv,
-        rw conj at h4,
-        exact h4.2,
-    end,
-    have h5 : CRg rᵢ φ v, from h3 i v hv,
-    sorry   }
-end
-
-lemma B11 : (⊢ φ →ₘ Rg rᵢ (φ ∧ₘ ψ)) → (⊢ (φ →ₘ CRg rᵢ ψ)) :=
-begin
-intros h1 w h2 v hv,
-have hh : φ v ∧ ψ v :=
-begin
-rw imp at h1,
---simp * at h1,
-have h3 : Rg rᵢ (φ ∧ₘ ψ) w, from h1 w h2,
---rw Rg at h3,
---clear h1,
-induction hv,
-{   rename hv_w w,
-    rename hv_v v,
-    cases hv_ᾰ with i,
-    have h4 : R rᵢ i (φ ∧ₘ ψ) w, from h3 i,
-    rw R at h4,
-    have h5 : (φ ∧ₘ ψ) v, from h4 v hv_ᾰ_h,
-    rw conj at h5,
-    assumption },
-{   rename hv_w w,
-    rename hv_v v,
-    rename hv_u u,
-    cases hv_ᾰ_1 with k,
-    have h6 : R rᵢ k (φ ∧ₘ ψ) w, from h3 k,
-    --clear h3,
-    rw conj at h6,
-    rw R at h6,
-    have h7 : (∀ (i : indiv), R rᵢ i (φ ∧ₘ ψ) w) → (φ v ∧ ψ v), by exact hv_ih h2,
-    --rw Rg at h3,
-    have h8 : φ v ∧ ψ v, by exact h7 h3,
-    have h9 : φ v, by exact h8.1,
-    have h10 : Rg rᵢ (φ ∧ₘ ψ) v, by exact h1 v h9,
-    --rw Rg at h10,
-    have h11 : R rᵢ k (φ ∧ₘ ψ) v, by exact h10 k,
-    --rw R at h11,
-    exact h11 u hv_ᾰ_1_h    }
-end,
-exact hh.2,
-end
-
-
-
-#lint
