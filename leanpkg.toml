@@ -1,0 +1,9 @@
+[package]
+name = "lewis"
+version = "0.1"
+lean_version = "leanprover-community/lean:3.24.0"
+path = "src"
+timeout = 200
+
+[dependencies]
+mathlib = {git = "https://github.com/leanprover-community/mathlib", rev = "b537cc08ba7dc490c40e48145ab8a63d12941462"}
